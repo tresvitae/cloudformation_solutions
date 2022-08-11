@@ -1,0 +1,122 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create IAM role attached to EC2 in default VPC with SC
+
+Parameters:
+  EnvironmentName:
+    Description: Template name
+    Type: String
+    Default: CustomMetricEC2
+  MyKeyPair:
+    Description: List of available keys in eu-west-1 region
+    Type: AWS::EC2::KeyPair::KeyName
+
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      IamInstanceProfile: !Ref MyInstanceProfile
+      ImageId: ami-089950bc622d39ed8
+      InstanceInitiatedShutdownBehavior: Terminate
+      InstanceType: t2.micro
+      KeyName: !Ref MyKeyPair
+      Monitoring: false
+      SecurityGroups: !Ref InstanceSG
+      Tags: 
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+      UserData: 
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd php
+          systemctl start httpd
+          systemctl enable httpd
+          usermod -a -G apache ec2-user
+          chown -R ec2-user:apache /var/www
+          chmod 2775 /var/www
+          find /var/www -type d -exec chmod 2775 {} \;
+          find /var/www -type f -exec chmod 0664 {} \;
+          # PHP script to display Instance ID and Availability Zone
+          cat << 'EOF' > /var/www/html/index.php
+            <!DOCTYPE html>
+            <html>
+            <body>
+              <center>
+                <?php
+                # Get the instance ID from meta-data and store it in the $instance_id variable
+                $url = "http://169.254.169.254/latest/meta-data/instance-id";
+                $instance_id = file_get_contents($url);
+                # Get the instance's availability zone from metadata and store it in the $zone variable
+                $url = "http://169.254.169.254/latest/meta-data/placement/availability-zone";
+                $zone = file_get_contents($url);
+                ?>
+                <h2>EC2 Instance ID: <?php echo $instance_id ?></h2>
+                <h2>Availability Zone: <?php echo $zone ?></h2>
+              </center>
+            </body>
+            </html>
+          EOF
+
+  InstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http and https to client host
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+
+  EC2PushLogsToCloudWatchRole: 
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+  
+  EC2PushLogsToCloudWatchPolicy: 
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyName: !Ref EnvironmentName
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Effect: "Allow"
+            Action:
+              - 'cloudwatch:PutMetricData'
+              - 'cloudwatch:GetMetricStatistics'
+              - 'cloudwatch:ListMetrics'
+              - 'ec2:DescribeTags'
+            Resource: "*"
+      Roles: !Ref EC2PushLogsToCloudWatchRole
+
+  MyInstanceProfile: 
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Path: "/"
+      Roles: !Ref EC2PushLogsToCloudWatchRole
+
+Outputs:
+  EC2PublicDNS:
+    Description: Public DNS of EC2 instance
+    Value: !GetAtt EC2Instance.PublicDnsName
+  
+  Ec2PublicIP:
+    Description: Public IP of EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
