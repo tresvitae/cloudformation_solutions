@@ -16,11 +16,11 @@ Resources:
     Properties: 
       IamInstanceProfile: !Ref MyInstanceProfile
       ImageId: ami-089950bc622d39ed8
-      InstanceInitiatedShutdownBehavior: Terminate
       InstanceType: t2.micro
       KeyName: !Ref MyKeyPair
       Monitoring: false
-      SecurityGroups: !Ref InstanceSG
+      SecurityGroups: 
+        - !Ref InstanceSG
       Tags: 
         - Key: EnvironmentName
           Value: !Ref EnvironmentName
@@ -70,10 +70,6 @@ Resources:
           FromPort: 443
           ToPort: 443
           CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
 
   EC2PushLogsToCloudWatchRole: 
     Type: AWS::IAM::Role
@@ -104,13 +100,15 @@ Resources:
               - 'cloudwatch:ListMetrics'
               - 'ec2:DescribeTags'
             Resource: "*"
-      Roles: !Ref EC2PushLogsToCloudWatchRole
+      Roles: 
+        - !Ref EC2PushLogsToCloudWatchRole
 
   MyInstanceProfile: 
     Type: AWS::IAM::InstanceProfile
     Properties: 
       Path: "/"
-      Roles: !Ref EC2PushLogsToCloudWatchRole
+      Roles: 
+        - !Ref EC2PushLogsToCloudWatchRole
 
 Outputs:
   EC2PublicDNS:
