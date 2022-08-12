@@ -36,6 +36,15 @@ Resources:
           chmod 2775 /var/www
           find /var/www -type d -exec chmod 2775 {} \;
           find /var/www -type f -exec chmod 0664 {} \;
+          # Install custom metrics
+          yum install -y perl-Switch perl-DateTime perl-Sys-Syslog perl-LWP-Protocol-https perl-Digest-SHA.x86_64
+          curl https://aws-cloudwatch.s3.amazonaws.com/downloads/CloudWatchMonitoringScripts-1.2.2.zip -O
+          unzip CloudWatchMonitoringScripts-1.2.2.zip && rm CloudWatchMonitoringScripts-1.2.2.zip && cd aws-scripts-mon
+          # test
+          ./mon-put-instance-data.pl --mem-util --verify --verbose
+          # set Custom Metric
+          ./mon-put-instance-data.pl --mem-used-incl-cache-buff --mem-util --mem-used --mem-avail
+          (crontab -l 2>/dev/null; echo "*/5 * * * * ~/aws-scripts-mon/mon-put-instance-data.pl --mem-used-incl-cache-buff --mem-util --disk-space-util --disk-path=/ --from-cron") | crontab -
           # PHP script to display Instance ID and Availability Zone
           cat << 'EOF' > /var/www/html/index.php
             <!DOCTYPE html>
