@@ -44,7 +44,7 @@ Resources:
           ./mon-put-instance-data.pl --mem-util --verify --verbose
           # set Custom Metric
           ./mon-put-instance-data.pl --mem-used-incl-cache-buff --mem-util --mem-used --mem-avail
-          (crontab -l 2>/dev/null; echo "*/5 * * * * ~/aws-scripts-mon/mon-put-instance-data.pl --mem-used-incl-cache-buff --mem-util --disk-space-util --disk-path=/ --from-cron") | crontab -
+          (crontab -l 2>/dev/null; echo "*/5 * * * * /aws-scripts-mon/mon-put-instance-data.pl --mem-used-incl-cache-buff --mem-util --disk-space-util --disk-path=/ --from-cron") | crontab -
           # PHP script to display Instance ID and Availability Zone
           cat << 'EOF' > /var/www/html/index.php
             <!DOCTYPE html>
