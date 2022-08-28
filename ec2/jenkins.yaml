@@ -18,7 +18,7 @@ Resources:
   EC2Instance:
     Type: AWS::EC2::Instance
     Properties: 
-      ImageId: ami-089950bc622d39ed8
+      ImageId: ami-09e2d756e7d78558d
       InstanceType: t2.micro
       KeyName: !Ref MyKeyPair
       Monitoring: false
@@ -36,7 +36,6 @@ Resources:
           yum upgrade -y
           # Install Java 11 Corretto from AWS https://docs.aws.amazon.com/corretto/latest/corretto-11-ug/linux-info.html
           yum install java-11-amazon-corretto-headless -y
-          alternatives --config java
           # Install Jenkins
           yum install jenkins -y
           systemctl start jenkins
@@ -55,7 +54,6 @@ Resources:
         - Key: EnvironmentName
           Value: !Ref EnvironmentName
       VolumeType: gp2
-      DeletionPolicy: Delete
 
   InstanceSG:
     Type: AWS::EC2::SecurityGroup
