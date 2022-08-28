@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create EC2 instance with preconfigured Jenkins CI/CD pipeline.
+
+Parameters:
+  EnvironmentName:
+    Description: Template name
+    Type: String
+    Default: EC2Jenkins
+  MyKeyPair:
+    Description: List of available keys in eu-west-1 region
+    Type: AWS::EC2::KeyPair::KeyName
+  MyIpAddress: 
+    Type: String
+    Description: My IP address
+    Default: 0.0.0.0/0
+
+Resources:
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: ami-089950bc622d39ed8
+      InstanceType: t2.micro
+      KeyName: !Ref MyKeyPair
+      Monitoring: false
+      SecurityGroups: 
+        - !Ref InstanceSG
+      Tags: 
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+      UserData: 
+        Fn::Base64: |
+          #!/bin/bash
+          yum update
+          wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+          rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+          yum upgrade -y
+          # Install Java 11 Corretto from AWS https://docs.aws.amazon.com/corretto/latest/corretto-11-ug/linux-info.html
+          yum install java-11-amazon-corretto-headless -y
+          alternatives --config java
+          # Install Jenkins
+          yum install jenkins -y
+          systemctl start jenkins
+          systemctl enable jenkins
+          systemctl status jenkins
+          EOF
+
+  InstanceEBS:
+    Type: AWS::EC2::Volume
+    Properties: 
+      AvailabilityZone: !GetAtt EC2Instance.AvailabilityZone
+      Encrypted: false
+      MultiAttachEnabled: false
+      Size: 20
+      Tags: 
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+      VolumeType: gp2
+      DeletionPolicy: Delete
+
+  InstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http and https to client host
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIpAddress
+
+Outputs:
+  EC2PublicDNS:
+    Description: Public DNS of EC2 instance
+    Value: !GetAtt EC2Instance.PublicDnsName
+  
+  Ec2PublicIP:
+    Description: Public IP of EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
