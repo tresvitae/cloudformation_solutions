@@ -19,7 +19,7 @@ Resources:
     Type: AWS::EC2::Instance
     Properties: 
       ImageId: ami-09e2d756e7d78558d
-      InstanceType: t3.small
+      InstanceType: t3.medium
       KeyName: !Ref MyKeyPair
       Monitoring: false
       SecurityGroups: 
@@ -31,23 +31,30 @@ Resources:
         Fn::Base64: |
           #!/bin/bash
           yum update
-          # Install Java 8 Corretto from AWS 
-          amazon-linux-extras enable corretto8
-          yum install -y java-1.8.0-amazon-corretto-devel
+          # Install GIT & Java 11 Corretto from AWS https://docs.aws.amazon.com/corretto/latest/corretto-11-ug/linux-info.html
+          tym install -y git
+          yum install -y java-11-amazon-corretto-headless
           # Install TeamCity
           wget https://download.jetbrains.com/teamcity/TeamCity-2022.04.3.tar.gz
           tar xfz TeamCity-2022.04.3.tar.gz
           cd TeamCity/bin/
           ./runAll.sh start
           EOF
-
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 30
+            VolumeType: gp2
+            Encrypted: false
+            DeleteOnTermination: true
+        
   InstanceEBS:
     Type: AWS::EC2::Volume
     Properties: 
       AvailabilityZone: !GetAtt EC2Instance.AvailabilityZone
       Encrypted: false
       MultiAttachEnabled: false
-      Size: 20
+      Size: 30
       Tags: 
         - Key: EnvironmentName
           Value: !Ref EnvironmentName
@@ -56,11 +63,15 @@ Resources:
   InstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow http and https to client host
+      GroupDescription: Allow http and https to client host and TeamCity app on port 8111 
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 8111
