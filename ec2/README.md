@@ -1,0 +1,2 @@
+Run EC2 with preconfigured Jenkins [https://github.com/tresvitae/cloudformation_solutions/tree/main/ec2/jenkins.yaml]
+Run EC2 with preconfigured TeamCity [https://github.com/tresvitae/cloudformation_solutions/tree/main/ec2/teamcity.yaml]
