@@ -42,27 +42,26 @@ Resources:
           systemctl enable jenkins
           systemctl status jenkins
           EOF
-
-  InstanceEBS:
-    Type: AWS::EC2::Volume
-    Properties: 
-      AvailabilityZone: !GetAtt EC2Instance.AvailabilityZone
-      Encrypted: false
-      MultiAttachEnabled: false
-      Size: 20
-      Tags: 
-        - Key: EnvironmentName
-          Value: !Ref EnvironmentName
-      VolumeType: gp2
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp2
+            Encrypted: false
+            DeleteOnTermination: true
 
   InstanceSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Allow http and https to client host
+      GroupDescription: Allow http and https to client host and Jenkins app on port 8080
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 8080
