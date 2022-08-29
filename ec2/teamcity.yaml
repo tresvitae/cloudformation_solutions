@@ -47,18 +47,6 @@ Resources:
             VolumeType: gp2
             Encrypted: false
             DeleteOnTermination: true
-        
-  InstanceEBS:
-    Type: AWS::EC2::Volume
-    Properties: 
-      AvailabilityZone: !GetAtt EC2Instance.AvailabilityZone
-      Encrypted: false
-      MultiAttachEnabled: false
-      Size: 30
-      Tags: 
-        - Key: EnvironmentName
-          Value: !Ref EnvironmentName
-      VolumeType: gp2
 
   InstanceSG:
     Type: AWS::EC2::SecurityGroup
