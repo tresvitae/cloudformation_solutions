@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create Dynamo DB
+
+Parameters:
+  EnvironmentName:
+    Description: Template name
+    Type: String
+    Default: Mountains
+
+Resources:
+  MountainsDynamoDB:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: Region
+          AttributeType: S
+        - AttributeName: MountainName
+          AttributeType: S
+      BillingMode: PROVISIONED
+      KeySchema: 
+        - AttributeName: Region
+          KeyType: HASH
+        - AttributeName: MountainName
+          KeyType: RANGE
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 2
+        WriteCapacityUnits: 2
+      TableClass: STANDARD
+      TableName: !Ref EnvironmentName
+      Tags: 
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+
+Outputs:
+  Mountains:
+    Description: Mountains table created 
+    Value: !Ref EnvironmentName
