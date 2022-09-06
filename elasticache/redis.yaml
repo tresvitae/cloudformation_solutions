@@ -1,0 +1,181 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create ElastiCache Redis
+
+Parameters:
+  VPC:
+    Type: AWS::EC2::VPC::Id
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public Subnet 1 must be associated with selected VPC to connect to EC2 BastionHost.
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private Subnet 1 must be associated with selected VPC.
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private Subnet 2 must be associated with selected VPC.
+  EnvironmentName:
+    Description: Template name
+    Type: String
+    Default: Elasticache-redis
+  ClusterName:
+    Description: Custom name of the cluster. Auto generated if you don't supply your own.
+    Type: String
+    Default: myelasticacheredis
+  CacheNodeType:
+    Description: Cache node instance class, e.g. cache.t2.micro. 
+    Type: String
+    Default: cache.t2.micro
+    ConstraintDescription: Node instance class not supported
+    AllowedValues:
+      - cache.t2.micro
+      - cache.t2.small
+      - cache.t2.medium
+      - cache.m4.large
+      - cache.m4.xlarge
+      - cache.m4.2xlarge
+      - cache.m4.4xlarge
+      - cache.m4.10xlarge
+      - cache.r4.large
+      - cache.r4.xlarge
+      - cache.r4.2xlarge
+      - cache.r4.4xlarge
+      - cache.r4.8xlarge
+      - cache.r4.16xlarge
+  CacheEngine:
+    Description: The underlying cache engine, either Redis or Memcached
+    Type: String
+    Default: redis
+    ConstraintDescription: Node instance class not supported
+    AllowedValues:
+      - redis
+      - memcached
+  CacheNodeCount:
+    Description: Number of nodes in the cluster. Only used with memcached engine, for redis this value will be set to 1.
+    Type: Number
+    MinValue: 1
+    MaxValue: 15
+    ConstraintDescription: Node count must be between 1 and 15
+    Default: 1
+  AutoMinorVersionUpgrade:
+    Description: Whether or not minor version upgrades to the cache engine should be applied automatically during the maintenance window.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+  MyKeyPair:
+    Description: List of available keys in eu-west-1 region
+    Type: AWS::EC2::KeyPair::KeyName
+  MyIpAddress: 
+    Type: String
+    Description: My IP address
+    Default: 0.0.0.0/0
+
+Conditions:
+  IsRedis: !Equals [ !Ref CacheEngine, redis]
+
+Resources:
+  ElasticacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ElastiCache Security Group
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: !If [ IsRedis, 6379, 11211]
+          ToPort: !If [ IsRedis, 6379, 11211]
+      Tags: 
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+  ElastiCacheSubnet:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: RedisCacheSubnetGroup
+      Description: Create Cache Subnet of selected subnets.
+      SubnetIds: 
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags: 
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+  ElastiCacheCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      AutoMinorVersionUpgrade: !Ref AutoMinorVersionUpgrade
+      Engine: !Ref CacheEngine
+      CacheNodeType: !Ref CacheNodeType
+      ClusterName : !Ref ClusterName
+      NumCacheNodes: !If [ IsRedis, 1, !Ref CacheNodeCount]
+      CacheSubnetGroupName: !Ref ElastiCacheSubnet
+      VpcSecurityGroupIds: [!GetAtt ElasticacheSecurityGroup.GroupId]
+      Tags:
+        - Key: Name
+          Value: ElastiCache-Redis
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      ImageId: ami-09e2d756e7d78558d
+      InstanceType: t2.micro
+      SubnetId: !Ref PublicSubnet1
+      KeyName: !Ref MyKeyPair
+      SecurityGroupIds: 
+        - !Ref InstanceSG
+      Tags: 
+        - Key: EnvironmentName
+          Value: !Ref EnvironmentName
+      UserData: 
+        Fn::Base64: |
+          #!/bin/bash
+          yum update
+          amazon-linux-extras install epel -y
+          yum install gcc jemalloc-devel openssl-devel tcl tcl-devel -y
+          wget http://download.redis.io/redis-stable.tar.gz
+          tar xvzf redis-stable.tar.gz
+          cd redis-stable
+          make
+          EOF
+  InstanceSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow port access to Redis cluster.
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !If [ IsRedis, 6379, 11211]
+          ToPort: !If [ IsRedis, 6379, 11211]
+          SourceSecurityGroupId: !Ref ElasticacheSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIpAddress
+
+Outputs:
+  ClusterName:
+    Description: 'The name of the cluster'
+    Value: !Ref ElastiCacheCluster
+    Export:
+      Name: !Sub '${AWS::StackName}-ClusterName'
+  RedisEndpointAddress:
+    Description: 'The DNS address of the primary read-write cache node.'
+    Value: !GetAtt 'ElastiCacheCluster.RedisEndpoint.Address'
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisEndpointAddress'
+  RedisEndpointPort:
+    Description: 'The port that the primary read-write cache engine is listening on.'
+    Value: !GetAtt 'ElastiCacheCluster.RedisEndpoint.Port'
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisEndpointPort'
+  SecurityGroupId:
+    Description: 'The security group used to manage access to Elasticache Redis.'
+    Value: !Ref ElasticacheSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-SecurityGroupId'
+  EC2PublicDNS:
+    Description: Public DNS of EC2 instance
+    Value: !GetAtt EC2Instance.PublicDnsName
+  Ec2PublicIP:
+    Description: Public IP of EC2 instance
+    Value: !GetAtt EC2Instance.PublicIp
